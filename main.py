@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(754, 595)
+        MainWindow.resize(758, 860)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.address_input = QtWidgets.QLineEdit(self.centralwidget)
@@ -57,7 +57,7 @@ class Ui_MainWindow(object):
         self.label_2.setGeometry(QtCore.QRect(20, 90, 101, 16))
         self.label_2.setObjectName("label_2")
         self.verticalLayoutWidget = QtWidgets.QWidget(self.centralwidget)
-        self.verticalLayoutWidget.setGeometry(QtCore.QRect(10, 130, 731, 451))
+        self.verticalLayoutWidget.setGeometry(QtCore.QRect(10, 130, 731, 711))
         self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)

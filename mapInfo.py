@@ -3,6 +3,11 @@ import folium
 import tempfile
 import requests
 import json
+import pandas as pd
+import matplotlib.pyplot as plt
+import japanize_matplotlib
+from io import BytesIO
+import base64
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QLabel, QCheckBox, QHBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl
@@ -14,16 +19,17 @@ class MapWindow(QMainWindow):
         self.ui=Ui_MainWindow()
         self.ui.setupUi(self) 
         # window title
-        self.setWindowTitle("地図情報アプリ(京都府限定)")
+        self.setWindowTitle("何処に住もうか!?(京都府限定)")
         # 住所入力用のウィジェット
         self.ui.address_input.setPlaceholderText("住所を入力（例: 京都駅）")
         # 検索ボタン
         self.ui.search_button.clicked.connect(self.search_location)
         # チェックボックス（表示するデータの選択）の準備 =>　表示情報を増やす場合はここを修正
         self.checkboxes = {}
+        # 国土数値情報:地価公示データ　https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-L01-v3_0.html
         self.data_sources = {
             "地価公示データ": "/Users/user/Downloads/L01-24_26_GML/L01-24_26.geojson",
-            "人口統計": "population.geojson",
+            "人口年齢別構成": "population.geojson",
             "災害リスク": "disaster.geojson"
         }
         for name in self.data_sources.keys():
@@ -100,7 +106,49 @@ class MapWindow(QMainWindow):
                             location=[coords[1], coords[0]],
                             popup=popup_text,
                             icon=folium.Icon(color=get_price_color(price))
-                        ).add_to(m) 
+                        ).add_to(m)
+
+                elif name=='人口年齢別構成':
+                    # 人口データをロード
+                    def str_to_tuple(s):
+                        return tuple(map(float, s.strip("()").split(",")))
+                    # CSVを読み込む際に変換を適用
+                    df = pd.read_csv("/Users/user/training2412/my_app/map/population/京都.csv", converters={"locations": str_to_tuple})
+                    population_summary = df.pivot(index="都道府県市区町村", columns="年齢３区分", values="人口").fillna(0)
+                    area_name_list=df["都道府県市区町村"].unique()
+
+                    # 円グラフの画像を作成し、地図に埋め込む
+                    def create_pie_chart(data, labels):
+                        fig, ax = plt.subplots(figsize=(2,2))
+                        ax.pie(data, labels=labels, autopct="%1.1f%%", colors=["cyan", "orange", "red"], textprops={'fontsize': 15})
+                        ax.axis("equal")
+
+                        buffer = BytesIO()
+                        plt.savefig(buffer, format="png", bbox_inches="tight", transparent=True)
+                        buffer.seek(0)
+                        img_str = base64.b64encode(buffer.read()).decode()
+                        plt.close()
+                        return f"data:image/png;base64,{img_str}"
+
+                    # 各自治体のデータを処理
+                    for area_name, row in population_summary.iterrows():
+                        if area_name in area_name_list:
+                            locs = df['locations'].loc[df['都道府県市区町村']==area_name]
+                            loc,_,_=locs
+                            lat, lon = loc
+                            data = [row.get("15歳未満", 0), row.get("15～64歳", 0), row.get("65歳以上", 0)]
+                            ttl = sum(data)
+                            img_tag = create_pie_chart(data, ["15歳未満", "15～64歳", "65歳以上"])
+                            popup_html = f"""
+                            <b>{area_name}</b><br>
+                            <b>人口 {ttl:,d}人</b><br>
+                            <img src="{img_tag}" width="100">
+                            """
+                            folium.Marker(
+                                location=[lat, lon],
+                                popup=popup_html,
+                                icon=folium.Icon(color="darkgreen")
+                            ).add_to(m)
                 else:
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
@@ -125,7 +173,7 @@ class MapWindow(QMainWindow):
             </div>
             '''
 
-        m.get_root().html.add_child(folium.Element(legend_html))
+        #m.get_root().html.add_child(folium.Element(legend_html))
 
         # HTMLとして保存
         m.save(temp_path)
