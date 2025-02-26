@@ -6,59 +6,38 @@ import json
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QLabel, QCheckBox, QHBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl
+from main import *
 
 class MapWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
+        self.ui=Ui_MainWindow()
+        self.ui.setupUi(self) 
+        # window title
         self.setWindowTitle("地図情報アプリ")
-        self.setGeometry(100, 100, 800, 600)
-
-        # 中央ウィジェット設定
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        layout = QVBoxLayout()
-        central_widget.setLayout(layout)
-
         # 住所入力用のウィジェット
-        self.address_input = QLineEdit(self)
-        self.address_input.setPlaceholderText("住所を入力（例: 東京駅）")
-        layout.addWidget(self.address_input)
-
+        self.ui.address_input.setPlaceholderText("住所を入力（例: 東京駅）")
         # 検索ボタン
-        self.search_button = QPushButton("検索")
-        self.search_button.clicked.connect(self.search_location)
-        layout.addWidget(self.search_button)
-
-        # チェックボックス（表示するデータの選択）
+        self.ui.search_button.clicked.connect(self.search_location)
+        # チェックボックス（表示するデータの選択）の準備 =>　表示情報を増やす場合はここを修正
         self.checkboxes = {}
-        check_layout = QHBoxLayout()
-
         self.data_sources = {
             "路線価": "route_value.geojson",
             "人口統計": "population.geojson",
             "災害リスク": "disaster.geojson"
         }
-
         for name in self.data_sources.keys():
             checkbox = QCheckBox(name)
-            checkbox.setChecked(False)  # 初期状態は非表示
+            checkbox.setChecked(False)  # 初期状態はチェックなし
             checkbox.stateChanged.connect(self.update_map)
-            check_layout.addWidget(checkbox)
+            self.ui.horizontalLayout.addWidget(checkbox) #レイアウト・エリアに設置
             self.checkboxes[name] = checkbox
-
-        layout.addLayout(check_layout)
-
-        # 結果表示ラベル
-        self.result_label = QLabel("")
-        layout.addWidget(self.result_label)
 
         # QWebEngineView (地図表示用)
         self.browser = QWebEngineView()
-        layout.addWidget(self.browser)
-
-        self.current_lat = 35.681236  # 初期緯度（東京駅）
-        self.current_lon = 139.767125  # 初期経度
+        self.ui.verticalLayout.addWidget(self.browser) #レイアウト・エリアに設置
+        self.current_lat = 34.98518642428514  # 初期緯度（京都駅）
+        self.current_lon = 135.75854980278922 # 初期経度
 
         # 初期地図の表示
         self.load_map()
@@ -67,7 +46,7 @@ class MapWindow(QMainWindow):
         """データごとに異なるスタイルを適用"""
         colors = {
             "路線価": "green",
-            "人口統計": "blue",
+            "人口統計": "yellow",
             "災害リスク": "red"
         }
         return lambda feature: {
@@ -103,6 +82,19 @@ class MapWindow(QMainWindow):
                 except Exception as e:
                     print(f"GeoJSON 読み込みエラー ({name}):", e)
 
+        legend_html = '''
+            <div style="position: fixed; bottom: 50px; left: 50px; width: 160px; height: 100px;
+                background-color: white; z-index:9999; font-size:14px; padding:10px;
+                border-radius: 8px; box-shadow: 2px 2px 5px gray;">
+                <b>凡例</b><br>
+                <i style="background:green;width:10px;height:10px;display:inline-block;"></i> 路線価<br>
+                <i style="background:blue;width:10px;height:10px;display:inline-block;"></i> 人口統計<br>
+                <i style="background:red;width:10px;height:10px;display:inline-block;"></i> 災害リスク
+            </div>
+            '''
+
+        m.get_root().html.add_child(folium.Element(legend_html))
+
         # HTMLとして保存
         m.save(temp_path)
 
@@ -111,17 +103,17 @@ class MapWindow(QMainWindow):
 
     def search_location(self):
         """住所を座標に変換し、地図を更新"""
-        address = self.address_input.text()
+        address = self.ui.address_input.text()
         if not address:
-            self.result_label.setText("住所を入力してください。")
+            self.ui.result_label.setText("住所を入力してください。")
             return
 
         lat, lon = self.geocode_address(address)
         if lat is None or lon is None:
-            self.result_label.setText("住所を特定できませんでした。")
+            self.ui.result_label.setText("住所を特定できませんでした。")
         else:
             self.current_lat, self.current_lon = lat, lon
-            self.result_label.setText(f"緯度: {lat}, 経度: {lon}")
+            self.ui.result_label.setText(f"緯度: {lat}, 経度: {lon}")
             self.load_map()
 
     def geocode_address(self, address):

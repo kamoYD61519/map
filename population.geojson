@@ -1,0 +1,16 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [139.75, 35.68]
+            },
+            "properties": {
+                "name": "千代田区",
+                "value": "人口 50,000人"
+            }
+        }
+    ]
+}
