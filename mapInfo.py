@@ -149,6 +149,7 @@ class MapWindow(QMainWindow):
                                 popup=popup_html,
                                 icon=folium.Icon(color="darkgreen")
                             ).add_to(m)
+                            #marker_color_list=[‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’, ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’, ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’, ‘gray’, ‘black’, ‘lightgray’]
                 else:
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
