@@ -1,0 +1,16 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[139.74, 35.67], [139.75, 35.67], [139.75, 35.68], [139.74, 35.68], [139.74, 35.67]]]
+            },
+            "properties": {
+                "name": "洪水リスクエリア",
+                "value": "危険度: 高"
+            }
+        }
+    ]
+}
