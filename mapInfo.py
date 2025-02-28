@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import japanize_matplotlib
 from io import BytesIO
 import base64
+import geopandas as gpd
+#
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QLabel, QCheckBox, QHBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl
@@ -19,18 +21,22 @@ class MapWindow(QMainWindow):
         self.ui=Ui_MainWindow()
         self.ui.setupUi(self) 
         # window title
-        self.setWindowTitle("何処に住もうか!?(京都府限定)")
+        self.setWindowTitle("何処に住もうか!? (京都府版)")
         # 住所入力用のウィジェット
         self.ui.address_input.setPlaceholderText("住所を入力（例: 京都駅）")
         # 検索ボタン
         self.ui.search_button.clicked.connect(self.search_location)
         # チェックボックス（表示するデータの選択）の準備 =>　表示情報を増やす場合はここを修正
         self.checkboxes = {}
-        # 国土数値情報:地価公示データ　https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-L01-v3_0.html
+        # 国土数値情報ダウンロードサイト https://nlftp.mlit.go.jp/ksj/index.html
+        ksj_data_path='/Users/user/training2412/my_app/map/kjs_data/'
         self.data_sources = {
             "地価公示データ": "/Users/user/Downloads/L01-24_26_GML/L01-24_26.geojson",
-            "人口年齢別構成": "population.geojson",
-            "災害リスク": "disaster.geojson"
+            "人口年齢別構成": "/Users/user/training2412/my_app/map/population/京都.csv",
+            "人口データ": f"{ksj_data_path}500m_mesh_2024_26_GEOJSON/500m_mesh_2024_26.geojson",
+            "都市計画": "/Users/user/Downloads/A31a-23_26_10_GEOJSON/20_想定最大規模/A31a-20-23_26_8606040167_10.geojson",
+            "洪水浸水エリア": f"{ksj_data_path}A31-12_26_GML/A31-12_26.shp"
+            #"景観地区": "/Users/user/training2412/my_app/map/temp_work/A35b-14_26_GML/A35d-14_26.shp"
         }
         for name in self.data_sources.keys():
             checkbox = QCheckBox(name)
@@ -82,12 +88,16 @@ class MapWindow(QMainWindow):
 
                     # 価格帯に応じたマーカーの色設定
                     def get_price_color(price):
-                        if price > 500000:  # 高価格（50万円/m² 以上）
+                        if price > 2000000:  # 高価格（200万円/m² 以上）
+                            return "black"
+                        elif price > 1000000:  # 中価格（100万円/m² 以上）
                             return "red"
-                        elif price > 300000:  # 中価格（30万円/m² 以上）
+                        elif price > 500000:  # 中価格（50万円/m² 以上）
                             return "orange"
-                        else:  # 低価格（30万円/m² 未満）
+                        elif price > 200000:  # 中価格（30万円/m² 以上）
                             return "blue"
+                        else:  # 低価格（30万円/m² 未満）
+                            return "lightblue"
 
                     # 各地点のマーカーを地図に追加
                     for feature in geojson_data["features"]:
@@ -107,13 +117,27 @@ class MapWindow(QMainWindow):
                             popup=popup_text,
                             icon=folium.Icon(color=get_price_color(price))
                         ).add_to(m)
+                    
+                    legend_html = '''
+                        <div style="position: fixed; bottom: 30px; left: 30px; width: 140px; height: 140px;
+                            background-color: white; z-index:9999; font-size:14px; padding:10px;
+                            border-radius: 8px; box-shadow: 2px 2px 5px gray;">
+                            <b>凡例</b><br>
+                            <i style="background:black;width:10px;height:10px;display:inline-block;"></i> 200万円/m² 以上 <br>
+                            <i style="background:red;width:10px;height:10px;display:inline-block;"></i> 100万円/m² 以上<br>
+                            <i style="background:orange;width:10px;height:10px;display:inline-block;"></i> 50万円/m² 以上<br>
+                            <i style="background:cadetblue;width:10px;height:10px;display:inline-block;"></i> 25万円/m² 以上<br>
+                            <i style="background:lightblue;width:10px;height:10px;display:inline-block;"></i> 25万円/m² 未満
+                        </div>
+                        '''
+                    m.get_root().html.add_child(folium.Element(legend_html))
 
                 elif name=='人口年齢別構成':
                     # 人口データをロード
                     def str_to_tuple(s):
                         return tuple(map(float, s.strip("()").split(",")))
                     # CSVを読み込む際に変換を適用
-                    df = pd.read_csv("/Users/user/training2412/my_app/map/population/京都.csv", converters={"locations": str_to_tuple})
+                    df = pd.read_csv(filepath, converters={"locations": str_to_tuple})
                     population_summary = df.pivot(index="都道府県市区町村", columns="年齢３区分", values="人口").fillna(0)
                     area_name_list=df["都道府県市区町村"].unique()
 
@@ -149,32 +173,107 @@ class MapWindow(QMainWindow):
                                 popup=popup_html,
                                 icon=folium.Icon(color="darkgreen")
                             ).add_to(m)
-                            #marker_color_list=[‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’, ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’, ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’, ‘gray’, ‘black’, ‘lightgray’]
-                else:
+                            #marker_color_list=[‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’, ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’, ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’, ‘gray’, ‘black’, ‘lightgray’]                            
+                
+                elif name=='人口データ':
                     try:
-                        with open(filepath, "r", encoding="utf-8") as f:
-                            geojson_data = json.load(f)
-                            folium.GeoJson(
-                                geojson_data,
-                                name=name,
-                                style_function=self.get_style_function(name),
-                                tooltip=folium.GeoJsonTooltip(fields=["name", "value"], aliases=["エリア", "情報"])
-                            ).add_to(m)
+                        gdf = gpd.read_file(filepath)
+                        # GeoJSON形式で保存
+                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
+                        gdf.to_file(geojson_path, driver='GeoJSON')
+                        folium.GeoJson(
+                            geojson_path,
+                            name='人口予測',
+                            style_function=lambda feature: {
+                                'fillColor': 'blue',
+                                'color': 'blue',
+                                'weight': 1,
+                                'fillOpacity': 0.5,
+                            }
+                        ).add_to(m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(m)
+                        
                     except Exception as e:
                         print(f"GeoJSON 読み込みエラー ({name}):", e)
 
-        legend_html = '''
-            <div style="position: fixed; bottom: 50px; left: 50px; width: 160px; height: 100px;
-                background-color: white; z-index:9999; font-size:14px; padding:10px;
-                border-radius: 8px; box-shadow: 2px 2px 5px gray;">
-                <b>凡例</b><br>
-                <i style="background:green;width:10px;height:10px;display:inline-block;"></i> 地価<br>
-                <i style="background:blue;width:10px;height:10px;display:inline-block;"></i> 人口統計<br>
-                <i style="background:red;width:10px;height:10px;display:inline-block;"></i> 災害リスク
-            </div>
-            '''
-
-        #m.get_root().html.add_child(folium.Element(legend_html))
+                elif name=='都市計画':
+                    try:
+                        gdf = gpd.read_file(filepath)
+                        # GeoJSON形式で保存
+                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
+                        gdf.to_file(geojson_path, driver='GeoJSON')
+                        folium.GeoJson(
+                            geojson_path,
+                            name='洪水浸水想定区域',
+                            style_function=lambda feature: {
+                                'fillColor': 'blue',
+                                'color': 'blue',
+                                'weight': 1,
+                                'fillOpacity': 0.5,
+                            }
+                        ).add_to(m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(m)
+                        
+                    except Exception as e:
+                        print(f"GeoJSON 読み込みエラー ({name}):", e)
+                    
+                elif name=='洪水浸水エリア(京都市)':
+                    def get_flood_color(rank):
+                        color_map = {
+                            1: "#ADD8E6",  # 0m以上0.5m未満（薄い青）
+                            2: "#0000FF",  # 0.5m以上3.0m未満（青）
+                            3: "#008000",  # 3.0m以上5.0m未満（緑）
+                            4: "#FFFF00",  # 5.0m以上10.0m未満（黄色）
+                            5: "#FFA500",  # 10.0m以上20.0m未満（オレンジ）
+                            6: "#FF0000"   # 20.0m以上（赤）
+                        }
+                        return color_map.get(rank, "#D3D3D3")  # 不明な場合はグレー
+                    
+                    try:
+                        gdf = gpd.read_file(filepath)
+                        # GeoJSON形式で保存
+                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
+                        #geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
+                        gdf.to_file(geojson_path, driver='GeoJSON')
+                        folium.GeoJson(
+                            geojson_path,
+                            name='浸水',
+                            style_function=lambda feature: {
+                                "fillColor": get_flood_color(feature["properties"].get("A31a_205", 4)),  # デフォルト0
+                                "color": "black",
+                                'weight': 1,
+                                'fillOpacity': 0.5,
+                            }
+                        ).add_to(m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(m)
+                        
+                    except Exception as e:
+                        print(f"GeoJSON 読み込みエラー ({name}):", e)
+                    
+                elif name=='都市計画':
+                    try:
+                        gdf = gpd.read_file(filepath)
+                        # GeoJSON形式で保存
+                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
+                        gdf.to_file(geojson_path, driver='GeoJSON')
+                        folium.GeoJson(
+                            geojson_path,
+                            name='景観',
+                            style_function=lambda feature: {
+                                'fillColor': 'blue',
+                                'color': 'blue',
+                                'weight': 1,
+                                'fillOpacity': 0.5,
+                            }
+                        ).add_to(m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(m)
+                        
+                    except Exception as e:
+                        print(f"GeoJSON 読み込みエラー ({name}):", e)
 
         # HTMLとして保存
         m.save(temp_path)
