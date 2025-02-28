@@ -33,8 +33,8 @@ class MapWindow(QMainWindow):
         self.data_sources = {
             "地価公示データ": "/Users/user/Downloads/L01-24_26_GML/L01-24_26.geojson",
             "人口年齢別構成": "/Users/user/training2412/my_app/map/population/京都.csv",
-            "人口データ": f"{ksj_data_path}500m_mesh_2024_26_GEOJSON/500m_mesh_2024_26.geojson",
-            "都市計画": "/Users/user/Downloads/A31a-23_26_10_GEOJSON/20_想定最大規模/A31a-20-23_26_8606040167_10.geojson",
+            "人口予測(2030)": f"{ksj_data_path}500m_mesh_2024_26_GEOJSON/500m_mesh_2024_26.geojson",
+            "桂川(亀岡)": "/Users/user/Downloads/A31a-23_26_10_GEOJSON/20_想定最大規模/A31a-20-23_26_8606040167_10.geojson",
             "洪水浸水エリア": f"{ksj_data_path}A31-12_26_GML/A31-12_26.shp"
             #"景観地区": "/Users/user/training2412/my_app/map/temp_work/A35b-14_26_GML/A35d-14_26.shp"
         }
@@ -94,10 +94,12 @@ class MapWindow(QMainWindow):
                             return "red"
                         elif price > 500000:  # 中価格（50万円/m² 以上）
                             return "orange"
-                        elif price > 200000:  # 中価格（30万円/m² 以上）
+                        elif price > 250000:  # 中価格（30万円/m² 以上）
                             return "blue"
-                        else:  # 低価格（30万円/m² 未満）
+                        elif price > 100000:  # 中価格（30万円/m² 以上）
                             return "lightblue"
+                        else:  # 低価格（30万円/m² 未満）
+                            return "lightgray"
 
                     # 各地点のマーカーを地図に追加
                     for feature in geojson_data["features"]:
@@ -119,7 +121,7 @@ class MapWindow(QMainWindow):
                         ).add_to(m)
                     
                     legend_html = '''
-                        <div style="position: fixed; bottom: 30px; left: 30px; width: 140px; height: 140px;
+                        <div style="position: fixed; bottom: 20px; left: 20px; width: 140px; height: 155px;
                             background-color: white; z-index:9999; font-size:14px; padding:10px;
                             border-radius: 8px; box-shadow: 2px 2px 5px gray;">
                             <b>凡例</b><br>
@@ -127,7 +129,8 @@ class MapWindow(QMainWindow):
                             <i style="background:red;width:10px;height:10px;display:inline-block;"></i> 100万円/m² 以上<br>
                             <i style="background:orange;width:10px;height:10px;display:inline-block;"></i> 50万円/m² 以上<br>
                             <i style="background:cadetblue;width:10px;height:10px;display:inline-block;"></i> 25万円/m² 以上<br>
-                            <i style="background:lightblue;width:10px;height:10px;display:inline-block;"></i> 25万円/m² 未満
+                            <i style="background:lightblue;width:10px;height:10px;display:inline-block;"></i> 10万円/m² 以上<br>
+                            <i style="background:lightgray;width:10px;height:10px;display:inline-block;"></i> 10万円/m² 未満
                         </div>
                         '''
                     m.get_root().html.add_child(folium.Element(legend_html))
@@ -175,21 +178,46 @@ class MapWindow(QMainWindow):
                             ).add_to(m)
                             #marker_color_list=[‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’, ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’, ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’, ‘gray’, ‘black’, ‘lightgray’]                            
                 
-                elif name=='人口データ':
+                elif name=='人口予測(2030)':
+                    def get_population_color(ttl):
+                        if ttl > 5000:
+                            rnk = 7
+                        elif ttl > 3000:
+                            rnk = 6
+                        elif ttl > 2000:
+                            rnk = 5
+                        elif ttl > 1000:
+                            rnk = 4
+                        elif ttl > 500:
+                            rnk = 3
+                        elif ttl > 100:
+                            rnk = 2
+                        else:
+                            rnk = 1
+                        color_map = {
+                            1: "#FFF4F4",  # 0m以上0.5m未満（薄い青）
+                            2: "#FFD1D1",  # 0.5m以上3.0m未満（青）
+                            3: "#FFA8A8",  # 3.0m以上5.0m未満（緑）
+                            4: "#FF7F7F",  # 5.0m以上10.0m未満（黄色）
+                            5: "#FF7A7A",  # 10.0m以上20.0m未満（オレンジ）
+                            6: "#FF4C4C",  # 10.0m以上20.0m未満（オレンジ）
+                            7: "#FF0000"   # 20.0m以上（赤）
+                        }
+                        return color_map.get(rnk, "#D3D3D3")  # 不明な場合はグレー
+                    
+                        # **GeoJSON を `geopandas` で読み込む**
+                    
                     try:
-                        gdf = gpd.read_file(filepath)
-                        # GeoJSON形式で保存
-                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
-                        gdf.to_file(geojson_path, driver='GeoJSON')
                         folium.GeoJson(
-                            geojson_path,
-                            name='人口予測',
+                            filepath,
+                            name='人口予測(2030)',
                             style_function=lambda feature: {
-                                'fillColor': 'blue',
+                                'fillColor': get_population_color(feature["properties"].get("PTN_2030",0)),
                                 'color': 'blue',
-                                'weight': 1,
+                                'weight': 0.5,
                                 'fillOpacity': 0.5,
-                            }
+                            },
+                            tooltip=folium.GeoJsonTooltip(fields=["PTN_2030"], aliases=["総人口"])
                         ).add_to(m)
                         # レイヤーコントロールの追加
                         folium.LayerControl().add_to(m)
@@ -219,6 +247,40 @@ class MapWindow(QMainWindow):
                     except Exception as e:
                         print(f"GeoJSON 読み込みエラー ({name}):", e)
                     
+                elif name=='人口':
+                    def get_flood_color(rank):
+                        color_map = {
+                            1: "#ADD8E6",  # 0m以上0.5m未満（薄い青）
+                            2: "#0000FF",  # 0.5m以上3.0m未満（青）
+                            3: "#008000",  # 3.0m以上5.0m未満（緑）
+                            4: "#FFFF00",  # 5.0m以上10.0m未満（黄色）
+                            5: "#FFA500",  # 10.0m以上20.0m未満（オレンジ）
+                            6: "#FF0000"   # 20.0m以上（赤）
+                        }
+                        return color_map.get(rank, "#D3D3D3")  # 不明な場合はグレー
+                    
+                    try:
+                        gdf = gpd.read_file(filepath)
+                        # GeoJSON形式で保存
+                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
+                        #geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
+                        gdf.to_file(geojson_path, driver='GeoJSON')
+                        folium.GeoJson(
+                            geojson_path,
+                            name='浸水',
+                            style_function=lambda feature: {
+                                "fillColor": get_flood_color(feature["properties"].get("A31a_205", 4)),  # デフォルト0
+                                "color": "black",
+                                'weight': 1,
+                                'fillOpacity': 0.5,
+                            }
+                        ).add_to(m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(m)
+                        
+                    except Exception as e:
+                        print(f"GeoJSON 読み込みエラー ({name}):", e)
+                
                 elif name=='洪水浸水エリア(京都市)':
                     def get_flood_color(rank):
                         color_map = {
@@ -253,7 +315,7 @@ class MapWindow(QMainWindow):
                     except Exception as e:
                         print(f"GeoJSON 読み込みエラー ({name}):", e)
                     
-                elif name=='都市計画':
+                elif name=='桂川(亀岡)':
                     try:
                         gdf = gpd.read_file(filepath)
                         # GeoJSON形式で保存
