@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>754</width>
-    <height>595</height>
+    <width>758</width>
+    <height>730</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -115,12 +115,32 @@ color:white;
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>130</y>
+      <y>160</y>
       <width>731</width>
-      <height>451</height>
+      <height>551</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout"/>
+   </widget>
+   <widget class="QComboBox" name="combB1">
+    <property name="geometry">
+     <rect>
+      <x>410</x>
+      <y>120</y>
+      <width>151</width>
+      <height>26</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboB2">
+    <property name="geometry">
+     <rect>
+      <x>573</x>
+      <y>120</y>
+      <width>141</width>
+      <height>26</height>
+     </rect>
+    </property>
    </widget>
   </widget>
  </widget>

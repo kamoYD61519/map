@@ -13,7 +13,7 @@ import geopandas as gpd
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QPushButton, QLabel, QCheckBox, QHBoxLayout
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl
-from main import *
+from mapmain import *
 
 class MapWindow(QMainWindow):
     def __init__(self):
@@ -26,6 +26,27 @@ class MapWindow(QMainWindow):
         self.ui.address_input.setPlaceholderText("住所を入力（例: 京都駅）")
         # 検索ボタン
         self.ui.search_button.clicked.connect(self.search_location)
+        self.rivers={
+            '鴨川': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_26_8606040182_10.geojson',34.989743936089084, 135.71761888250657,13],
+            '桂川(京都府南部)': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_86_8606040167_10.geojson',34.97544965336611, 135.71980021900657,13], 
+            '天神川': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_26_8606040194_10.geojson',34.9858005506766, 135.76777496359688,13],
+            '山科川': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_26_8606040774_10.geojson',34.9813807787651, 135.81277047184923,13],
+            '木津川': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_86_8606040371_10.geojson',34.83450147151604, 135.7718001223155,13], 
+            '宇治川・淀川': ['/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_86_8606040001_10.geojson',34.888877437172106, 135.684038506804,13]
+        }
+        self.ui.combB1.addItems(self.rivers.keys())
+        self.ui.combB1.setVisible(False)
+        self.ui.combB1.currentIndexChanged.connect(self.load_map)
+        self.years={
+            '2020年':['PTN_2020','2,578,087'],
+            '2025年':['PTN_2025','2,518,390'],
+            '2050年':['PTN_2050','2,075,975'],
+            '2070年':['PTN_2070','1,667,139']
+        }
+        self.ui.combB2.addItems(self.years.keys())
+        self.ui.combB2.setVisible(False)
+        self.ui.combB2.currentIndexChanged.connect(self.load_map)
+        
         # チェックボックス（表示するデータの選択）の準備 =>　表示情報を増やす場合はここを修正
         self.checkboxes = {}
         # 国土数値情報ダウンロードサイト https://nlftp.mlit.go.jp/ksj/index.html
@@ -33,10 +54,8 @@ class MapWindow(QMainWindow):
         self.data_sources = {
             "地価公示データ": "/Users/user/Downloads/L01-24_26_GML/L01-24_26.geojson",
             "人口年齢別構成": "/Users/user/training2412/my_app/map/population/京都.csv",
-            "人口予測(2030)": f"{ksj_data_path}500m_mesh_2024_26_GEOJSON/500m_mesh_2024_26.geojson",
-            "桂川(亀岡)": "/Users/user/Downloads/A31a-23_26_10_GEOJSON/20_想定最大規模/A31a-20-23_26_8606040167_10.geojson",
-            "洪水浸水エリア": f"{ksj_data_path}A31-12_26_GML/A31-12_26.shp"
-            #"景観地区": "/Users/user/training2412/my_app/map/temp_work/A35b-14_26_GML/A35d-14_26.shp"
+            "氾濫浸水": "/Users/user/training2412/my_app/map/kjs_data/30_浸水継続時間/A31a-30-23_26_8606040182_10.geojson",
+            "人口予測": f"{ksj_data_path}500m_mesh_2024_26_GEOJSON/kyoto_pop.geojson"
         }
         for name in self.data_sources.keys():
             checkbox = QCheckBox(name)
@@ -50,6 +69,7 @@ class MapWindow(QMainWindow):
         self.ui.verticalLayout.addWidget(self.browser) #レイアウト・エリアに設置
         self.current_lat = 34.98518642428514  # 初期緯度（京都駅）
         self.current_lon = 135.75854980278922 # 初期経度
+        self.zoom = 13
 
         # 初期地図の表示
         self.load_map()
@@ -70,19 +90,20 @@ class MapWindow(QMainWindow):
 
     def load_map(self):
         """現在の位置と選択されたデータを表示"""
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
-        temp_path = temp_file.name
+        self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
+        self.temp_path = self.temp_file.name
 
         # Foliumで地図を作成
-        m = folium.Map(location=[self.current_lat, self.current_lon], zoom_start=15)
+        self.m = folium.Map(location=[self.current_lat, self.current_lon], zoom_start=self.zoom)
 
         # マーカーを追加
-        folium.Marker([self.current_lat, self.current_lon], popup="検索住所").add_to(m)
+        folium.Marker([self.current_lat, self.current_lon], popup="検索住所").add_to(self.m)
 
         # 選択されたGeoJSONデータをオーバーレイ
         for name, filepath in self.data_sources.items():
             if self.checkboxes[name].isChecked():  # 選択されているデータのみ表示
                 if name=='地価公示データ':
+                    self.zoom = 13
                     with open(filepath, "r", encoding="utf-8") as f:
                         geojson_data = json.load(f)
 
@@ -118,13 +139,13 @@ class MapWindow(QMainWindow):
                             location=[coords[1], coords[0]],
                             popup=popup_text,
                             icon=folium.Icon(color=get_price_color(price))
-                        ).add_to(m)
+                        ).add_to(self.m)
                     
                     legend_html = '''
                         <div style="position: fixed; bottom: 20px; left: 20px; width: 140px; height: 155px;
                             background-color: white; z-index:9999; font-size:14px; padding:10px;
                             border-radius: 8px; box-shadow: 2px 2px 5px gray;">
-                            <b>凡例</b><br>
+                            <b>地価公示</b><br>
                             <i style="background:black;width:10px;height:10px;display:inline-block;"></i> 200万円/m² 以上 <br>
                             <i style="background:red;width:10px;height:10px;display:inline-block;"></i> 100万円/m² 以上<br>
                             <i style="background:orange;width:10px;height:10px;display:inline-block;"></i> 50万円/m² 以上<br>
@@ -133,9 +154,10 @@ class MapWindow(QMainWindow):
                             <i style="background:lightgray;width:10px;height:10px;display:inline-block;"></i> 10万円/m² 未満
                         </div>
                         '''
-                    m.get_root().html.add_child(folium.Element(legend_html))
+                    self.m.get_root().html.add_child(folium.Element(legend_html))
 
                 elif name=='人口年齢別構成':
+                    self.zoom = 13
                     # 人口データをロード
                     def str_to_tuple(s):
                         return tuple(map(float, s.strip("()").split(",")))
@@ -175,10 +197,65 @@ class MapWindow(QMainWindow):
                                 location=[lat, lon],
                                 popup=popup_html,
                                 icon=folium.Icon(color="darkgreen")
-                            ).add_to(m)
+                            ).add_to(self.m)
                             #marker_color_list=[‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’, ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’, ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’, ‘gray’, ‘black’, ‘lightgray’]                            
+                    
+                elif name=='氾濫浸水':
+                    def get_flood_color(rank):
+                        color_map = {
+                            1: "#DBDBFF",  # 12時間未満
+                            2: "#8484FF",  # 1日間
+                            3: "#4C4CFF",  # 3日間
+                            4: "#1919FF",  # 1週間
+                            5: "#FF00FF",  # 2週間
+                            6: "#FF0000",  # 4週間
+                            7: "#000000"   # 4週間以上
+                        }
+                        return color_map.get(rank, "#D3D3D3")  # 不明な場合はグレー
+                    
+                    self.ui.combB1.setVisible(True)
+                    #self.ui.combB2.setVisible(False)
+                    #self.checkboxes['人口予測'].setChecked(False)
+                    river=self.ui.combB1.currentText()
+                    datafile,_,_,self.zoom=self.rivers.get(river)
+                    #datafile,self.current_lat,self.current_lon,self.zoom=self.rivers.get(river)
+                    if filepath != datafile:
+                        filepath = datafile
+                    try:
+                        folium.GeoJson(
+                            filepath,
+                            name='氾濫浸水エリア',
+                            style_function=lambda feature: {
+                                'fillColor': get_flood_color(feature["properties"].get("A31a_305", 1)),  # デフォルト0
+                                'color': 'blue',
+                                'weight': 1,
+                                'fillOpacity': 0.4,
+                            },
+                            tooltip=folium.GeoJsonTooltip(fields=["A31a_305"], aliases=["浸水時間ランク"])                            
+                        ).add_to(self.m)
+                        # レイヤーコントロールの追加
+                        folium.LayerControl().add_to(self.m)
+                        legend_html = '''
+                            <div style="position: fixed; bottom: 20px; right: 20px; width: 140px; height: 175px;
+                                background-color: white; z-index:9999; font-size:14px; padding:10px;
+                                border-radius: 8px; box-shadow: 2px 2px 5px gray;">
+                                <b>浸水継続時間</b><br>
+                                <i style="background:#DBDBFF;width:10px;height:10px;display:inline-block;"></i> 1: 12時間未満 <br>
+                                <i style="background:#8484FF;width:10px;height:10px;display:inline-block;"></i> 2: 1日間<br>
+                                <i style="background:#4C4CFF;width:10px;height:10px;display:inline-block;"></i> 3: 3日間<br>
+                                <i style="background:#1919FF;width:10px;height:10px;display:inline-block;"></i> 4: 1週間<br>
+                                <i style="background:#FF00FF;width:10px;height:10px;display:inline-block;"></i> 5: 2週間<br>
+                                <i style="background:#FF0000;width:10px;height:10px;display:inline-block;"></i> 6: 4週間<br>
+                                <i style="background:#000000;width:10px;height:10px;display:inline-block;"></i> 6: 4週間以上
+                            </div>
+                            '''
+                        self.m.get_root().html.add_child(folium.Element(legend_html))
+
+                    except Exception as e:
+                        print(f"GeoJSON 読み込みエラー ({name}):", e)
                 
-                elif name=='人口予測(2030)':
+                elif name=='人口予測':
+                    self.zoom=12
                     def get_population_color(ttl):
                         if ttl > 5000:
                             rnk = 7
@@ -196,32 +273,45 @@ class MapWindow(QMainWindow):
                             rnk = 1
                         color_map = {
                             1: "#FFF4F4",  # 0m以上0.5m未満（薄い青）
-                            2: "#FFD1D1",  # 0.5m以上3.0m未満（青）
-                            3: "#FFA8A8",  # 3.0m以上5.0m未満（緑）
-                            4: "#FF7F7F",  # 5.0m以上10.0m未満（黄色）
-                            5: "#FF7A7A",  # 10.0m以上20.0m未満（オレンジ）
-                            6: "#FF4C4C",  # 10.0m以上20.0m未満（オレンジ）
-                            7: "#FF0000"   # 20.0m以上（赤）
+                            2: "#FFFF7A",  # 0.5m以上3.0m未満（青）
+                            3: "#FFFF14",  # 3.0m以上5.0m未満（緑）
+                            4: "#FFAA56",  # 5.0m以上10.0m未満（黄色）
+                            5: "#FF7F00",  # 10.0m以上20.0m未満（オレンジ）
+                            6: "#FF00FF",  # 10.0m以上20.0m未満（オレンジ）
+                            7: "#FF0000"   # 赤
                         }
                         return color_map.get(rnk, "#D3D3D3")  # 不明な場合はグレー
                     
                         # **GeoJSON を `geopandas` で読み込む**
-                    
+                    self.ui.combB2.setVisible(True)
+                    #self.ui.combB1.setVisible(False)
+                    #self.checkboxes['氾濫浸水'].setChecked(False)
+                    year=self.ui.combB2.currentText()
+                    col,population_total=self.years.get(year)
                     try:
                         folium.GeoJson(
                             filepath,
-                            name='人口予測(2030)',
+                            name=f'人口予測({year})',
                             style_function=lambda feature: {
-                                'fillColor': get_population_color(feature["properties"].get("PTN_2030",0)),
+                                'fillColor': get_population_color(feature["properties"].get(col,0)),
                                 'color': 'blue',
                                 'weight': 0.5,
-                                'fillOpacity': 0.5,
+                                'fillOpacity': 0.6,
                             },
-                            tooltip=folium.GeoJsonTooltip(fields=["PTN_2030"], aliases=["総人口"])
-                        ).add_to(m)
+                            tooltip=folium.GeoJsonTooltip(fields=[col], aliases=[f"{year}人口予測"])
+                        ).add_to(self.m)
                         # レイヤーコントロールの追加
-                        folium.LayerControl().add_to(m)
-                        
+                        folium.LayerControl().add_to(self.m)
+                        legend_html = f'''
+                            <div style="position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
+                                width: 270px; height: 40px; background-color: white; z-index:9999; font-size:15px;
+                                padding:10px; border:2px solid darkgray; border-radius: 8px; 
+                                box-shadow: 5px 5px 10px darkgray; 
+                                display: flex; justify-content: center; align-items: center; text-align: center;">
+                                <b>京都府 総人口予測 {population_total} 人 </b><br>
+                            </div>
+                            '''
+                        self.m.get_root().html.add_child(folium.Element(legend_html))               
                     except Exception as e:
                         print(f"GeoJSON 読み込みエラー ({name}):", e)
 
@@ -240,108 +330,18 @@ class MapWindow(QMainWindow):
                                 'weight': 1,
                                 'fillOpacity': 0.5,
                             }
-                        ).add_to(m)
+                        ).add_to(self.m)
                         # レイヤーコントロールの追加
-                        folium.LayerControl().add_to(m)
-                        
-                    except Exception as e:
-                        print(f"GeoJSON 読み込みエラー ({name}):", e)
-                    
-                elif name=='人口':
-                    def get_flood_color(rank):
-                        color_map = {
-                            1: "#ADD8E6",  # 0m以上0.5m未満（薄い青）
-                            2: "#0000FF",  # 0.5m以上3.0m未満（青）
-                            3: "#008000",  # 3.0m以上5.0m未満（緑）
-                            4: "#FFFF00",  # 5.0m以上10.0m未満（黄色）
-                            5: "#FFA500",  # 10.0m以上20.0m未満（オレンジ）
-                            6: "#FF0000"   # 20.0m以上（赤）
-                        }
-                        return color_map.get(rank, "#D3D3D3")  # 不明な場合はグレー
-                    
-                    try:
-                        gdf = gpd.read_file(filepath)
-                        # GeoJSON形式で保存
-                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
-                        #geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
-                        gdf.to_file(geojson_path, driver='GeoJSON')
-                        folium.GeoJson(
-                            geojson_path,
-                            name='浸水',
-                            style_function=lambda feature: {
-                                "fillColor": get_flood_color(feature["properties"].get("A31a_205", 4)),  # デフォルト0
-                                "color": "black",
-                                'weight': 1,
-                                'fillOpacity': 0.5,
-                            }
-                        ).add_to(m)
-                        # レイヤーコントロールの追加
-                        folium.LayerControl().add_to(m)
-                        
-                    except Exception as e:
-                        print(f"GeoJSON 読み込みエラー ({name}):", e)
-                
-                elif name=='洪水浸水エリア(京都市)':
-                    def get_flood_color(rank):
-                        color_map = {
-                            1: "#ADD8E6",  # 0m以上0.5m未満（薄い青）
-                            2: "#0000FF",  # 0.5m以上3.0m未満（青）
-                            3: "#008000",  # 3.0m以上5.0m未満（緑）
-                            4: "#FFFF00",  # 5.0m以上10.0m未満（黄色）
-                            5: "#FFA500",  # 10.0m以上20.0m未満（オレンジ）
-                            6: "#FF0000"   # 20.0m以上（赤）
-                        }
-                        return color_map.get(rank, "#D3D3D3")  # 不明な場合はグレー
-                    
-                    try:
-                        gdf = gpd.read_file(filepath)
-                        # GeoJSON形式で保存
-                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/flood_inundation.geojson'
-                        #geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
-                        gdf.to_file(geojson_path, driver='GeoJSON')
-                        folium.GeoJson(
-                            geojson_path,
-                            name='浸水',
-                            style_function=lambda feature: {
-                                "fillColor": get_flood_color(feature["properties"].get("A31a_205", 4)),  # デフォルト0
-                                "color": "black",
-                                'weight': 1,
-                                'fillOpacity': 0.5,
-                            }
-                        ).add_to(m)
-                        # レイヤーコントロールの追加
-                        folium.LayerControl().add_to(m)
-                        
-                    except Exception as e:
-                        print(f"GeoJSON 読み込みエラー ({name}):", e)
-                    
-                elif name=='桂川(亀岡)':
-                    try:
-                        gdf = gpd.read_file(filepath)
-                        # GeoJSON形式で保存
-                        geojson_path = '/Users/user/training2412/my_app/map/temp_work/output_path.geojson'
-                        gdf.to_file(geojson_path, driver='GeoJSON')
-                        folium.GeoJson(
-                            geojson_path,
-                            name='景観',
-                            style_function=lambda feature: {
-                                'fillColor': 'blue',
-                                'color': 'blue',
-                                'weight': 1,
-                                'fillOpacity': 0.5,
-                            }
-                        ).add_to(m)
-                        # レイヤーコントロールの追加
-                        folium.LayerControl().add_to(m)
+                        folium.LayerControl().add_to(self.m)
                         
                     except Exception as e:
                         print(f"GeoJSON 読み込みエラー ({name}):", e)
 
         # HTMLとして保存
-        m.save(temp_path)
+        self.m.save(self.temp_path)
 
         # QWebEngineView で地図を表示
-        self.browser.setUrl(QUrl.fromLocalFile(temp_path))
+        self.browser.setUrl(QUrl.fromLocalFile(self.temp_path))
 
     def search_location(self):
         """住所を座標に変換し、地図を更新"""
@@ -381,6 +381,17 @@ class MapWindow(QMainWindow):
 
     def update_map(self):
         """チェックボックスの状態に応じて地図を更新"""
+        sender = self.sender()  # どのチェックボックスが変更されたか取得
+        if sender == self.checkboxes['氾濫浸水']:
+            self.ui.combB1.setVisible(False)
+            if self.checkboxes['氾濫浸水'].isChecked():
+                self.checkboxes['人口予測'].setChecked(False)  # B をチェック → A をオフ
+                self.ui.combB2.setVisible(False)
+        elif sender == self.checkboxes['人口予測']:
+            self.ui.combB2.setVisible(False)
+            if self.checkboxes['人口予測'].isChecked():
+                self.checkboxes['氾濫浸水'].setChecked(False)  # A をチェック → B をオフ
+                self.ui.combB1.setVisible(False)
         self.load_map()
 
 if __name__ == "__main__":
